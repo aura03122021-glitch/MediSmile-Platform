@@ -206,6 +206,41 @@ export async function fetchDoctorByProfileId(profileId: string): Promise<DoctorP
   return data ? mapDoctor(data as Record<string, unknown>) : null;
 }
 
+export interface DoctorProfileUpdateInput {
+  specialties: string[];
+  bio: string;
+  clinicName: string;
+  clinicAddress: string;
+  city: string;
+  province: string;
+  prcLicenseNumber: string;
+  medicalDegree: string;
+  yearsOfExperience: number;
+  languages: string[];
+  acceptedPaymentMethods: string[];
+  acceptedHmos: string[];
+  consultationFeeCents: number;
+}
+
+export async function updateMyDoctorProfile(profileId: string, input: DoctorProfileUpdateInput) {
+  const { error } = await supabase.from('doctor_profiles').update({
+    specialties: input.specialties,
+    bio: input.bio,
+    clinic_name: input.clinicName,
+    clinic_address: input.clinicAddress,
+    city: input.city,
+    province: input.province,
+    prc_license_number: input.prcLicenseNumber,
+    medical_degree: input.medicalDegree,
+    years_of_experience: input.yearsOfExperience,
+    languages: input.languages,
+    accepted_payment_methods: input.acceptedPaymentMethods,
+    accepted_hmos: input.acceptedHmos,
+    consultation_fee_cents: input.consultationFeeCents,
+  }).eq('profile_id', profileId);
+  if (error) throw error;
+}
+
 export async function createAppointment(input: {
   patientId: string;
   doctorId: string;

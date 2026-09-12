@@ -33,9 +33,7 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
       const { error: err } = await signUp(email, password, fullName.trim(), role);
       if (err) { setError(err); setLoading(false); return; }
 
-      if (role === 'subscriber') {
-        setSignupSuccess(true);
-      }
+      setSignupSuccess(true);
     } else {
       const { error: err } = await signIn(email, password);
       if (err) { setError(err); }
@@ -44,15 +42,20 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
   }
 
   if (signupSuccess) {
+    const isSubscriber = role === 'subscriber';
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFB] px-4">
         <div className="w-full max-w-md rounded-2xl border border-[#e5f0ef] bg-white p-8 shadow-sm text-center">
           <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-[#e5f4f3] text-[#0D6E6E]">
             <Stethoscope size={24} />
           </div>
-          <h2 className="text-xl font-bold text-[#1A2B3C]">Application Submitted</h2>
+          <h2 className="text-xl font-bold text-[#1A2B3C]">
+            {isSubscriber ? 'Application Submitted' : 'Check Your Email'}
+          </h2>
           <p className="mt-3 text-sm text-[#607181] leading-6">
-            Your clinic/doctor account is pending approval. A MediSmile administrator will review your credentials and activate your account. You'll receive an email once approved.
+            {isSubscriber
+              ? "Your clinic/doctor account is pending approval. A MediSmile administrator will review your credentials and activate your account. You'll receive an email once approved."
+              : `We've sent a confirmation link to ${email}. Click the link in that email to activate your account, then come back here to sign in.`}
           </p>
           <button onClick={() => onNavigate('/')} className="mt-6 rounded-xl bg-[#0D6E6E] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#095a5a]">
             Back to Home

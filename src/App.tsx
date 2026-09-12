@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './lib/auth-context';
 import { SiteContentProvider } from './lib/site-content-context';
+import { fetchDoctorByProfileId } from './lib/live-data';
 
 const MediSmileLanding = lazy(() => import('./components/generated/MediSmileLanding'));
 const DoctorClinicLanding = lazy(() => import('./components/marketing/DoctorClinicLanding'));
@@ -12,6 +13,7 @@ const DoctorProfile = lazy(() => import('./components/patient/DoctorProfile'));
 const BookingAppointment = lazy(() => import('./components/generated/AppointmentBooking'));
 const PatientRecords = lazy(() => import('./components/generated/PatientRecords'));
 const Billings = lazy(() => import('./components/generated/BillingInvoicing'));
+const DoctorOnboarding = lazy(() => import('./components/subscriber/DoctorOnboarding'));
 
 function Loading() {
   return (
@@ -78,7 +80,7 @@ function AppRouter() {
       case 'portal':
         if (!user) return <LoginPage onNavigate={navigate} />;
         if (activeUser!.status === 'pending' && activeUser!.role === 'subscriber') {
-          return <PendingApproval onSignOut={() => { navigate('/'); }} />;
+          return <SubscriberPendingGate profileId={activeUser!.id} onSignOut={() => { navigate('/'); }} />;
         }
         return renderPortal(route.view, route.doctorId);
     }
@@ -132,6 +134,26 @@ function AppRouter() {
         }
     }
   }
+}
+
+function SubscriberPendingGate({ profileId, onSignOut }: { profileId: string; onSignOut: () => void }) {
+  const [checking, setChecking] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [justSubmitted, setJustSubmitted] = useState(false);
+
+  useEffect(() => {
+    fetchDoctorByProfileId(profileId)
+      .then((doctor) => setNeedsOnboarding(!doctor || !doctor.clinicName))
+      .finally(() => setChecking(false));
+  }, [profileId]);
+
+  if (checking) return <Loading />;
+
+  if (needsOnboarding && !justSubmitted) {
+    return <DoctorOnboarding onComplete={() => setJustSubmitted(true)} />;
+  }
+
+  return <PendingApproval onSignOut={onSignOut} />;
 }
 
 function PendingApproval({ onSignOut }: { onSignOut: () => void }) {
