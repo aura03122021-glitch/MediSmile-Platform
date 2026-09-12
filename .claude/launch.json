@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "medismile-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "C:\\Users\\YUMI\\AppData\\Local\\node-portable\\node-v22.15.0-win-x64\\npx.cmd",
+      "runtimeArgs": ["vite", "--host"],
       "port": 5173
     }
   ]
