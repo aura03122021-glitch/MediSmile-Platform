@@ -1,0 +1,2 @@
+/* Fix: doctors could not see (or update) their own doctor_profiles row while pending approval, since the only SELECT policy required status = 'approved'. This silently blocked onboarding form submissions (0 rows updated, no error) and hid pending doctors from the Super Admin approval queue. */
+CREATE POLICY doctor_profiles_owner_read ON doctor_profiles FOR SELECT USING (profile_id = auth.uid() OR is_super_admin());
