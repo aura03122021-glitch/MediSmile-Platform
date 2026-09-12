@@ -21,8 +21,8 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isDemoMode) return;
-    supabase.from('site_content').select('value').eq('content_key', 'public').maybeSingle().then(({ data }) => {
-      if (data?.value) setContent(data.value as SiteContent);
+        supabase.from('site_content').select('content_payload').eq('section_key', 'public').maybeSingle().then(({ data }) => {
+      if (data?.content_payload) setContent(data.content_payload as SiteContent);
     });
   }, []);
 
@@ -48,7 +48,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
 
   const saveContent = useCallback(async () => {
     if (isDemoMode) return;
-    const { error } = await supabase.from('site_content').upsert({ content_key: 'public', value: content }, { onConflict: 'content_key' });
+        const { error } = await supabase.from('site_content').upsert({ section_key: 'public', content_payload: content }, { onConflict: 'section_key' });
     if (error) throw error;
   }, [content]);
 

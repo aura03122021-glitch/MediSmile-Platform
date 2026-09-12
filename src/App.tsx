@@ -159,8 +159,9 @@ function PendingApproval({ onSignOut }: { onSignOut: () => void }) {
 }
 
 function parseRoute(path?: string): AppRoute {
-  const pathname = path ?? window.location.pathname;
-  const search = path ? '' : window.location.search;
+  const raw = path ?? (window.location.pathname + window.location.search);
+  const [pathname, queryString = ''] = raw.split('?');
+  const search = queryString ? `?${queryString}` : '';
   if (pathname === '/for-providers') return { page: 'for-providers' };
   if (pathname === '/login') return { page: 'login' };
   if (pathname.startsWith('/portal')) {
