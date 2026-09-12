@@ -103,7 +103,7 @@ export default function PatientPortalHome({ onBookDoctor }: PatientPortalHomePro
   const doctorsWithDistance = useMemo(() => {
     return doctors.map((doc) => ({
       ...doc,
-      distance: userCoords
+      distance: userCoords && doc.latitude != null && doc.longitude != null
         ? haversineKm(userCoords.lat, userCoords.lng, doc.latitude, doc.longitude)
         : null,
     }));
