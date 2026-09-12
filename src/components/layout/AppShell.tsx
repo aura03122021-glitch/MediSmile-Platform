@@ -13,7 +13,8 @@ const IconHome = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const IconCalendar = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-5 w-5"><rect x="4" y="5" width="16" height="15" rx="1.5" /><path d="M4 9.5h16" strokeLinecap="round" /><path d="M8 3v3M16 3v3" strokeLinecap="round" /></svg>;
 const IconFile = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-5 w-5"><path d="M6 3h8l4 4v14H6V3z" strokeLinejoin="round" /><path d="M14 3v4h4" strokeLinejoin="round" /><path d="M9 12h6M9 16h6" strokeLinecap="round" /></svg>;
 const IconCard = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-5 w-5"><rect x="3" y="6" width="18" height="13" rx="1.5" /><path d="M3 10h18" /><path d="M6 14.5h4" strokeLinecap="round" /></svg>;
-
+const IconUser = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-5 w-5"><circle cx="12" cy="8" r="3.5" /><path d="M4.5 20c1.5-4 5-5.5 7.5-5.5s6 1.5 7.5 5.5" strokeLinecap="round" /></svg>;
+const IconPill = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-5 w-5"><rect x="3" y="9" width="18" height="10" rx="5" /><path d="M12 9v10" /></svg>;
 const NAV_CONFIG: Record<Role, NavItem[]> = {
   super_admin: [{ id: 'dashboard', label: 'Dashboard', icon: IconShield }],
   subscriber: [
@@ -24,6 +25,9 @@ const NAV_CONFIG: Record<Role, NavItem[]> = {
   patient: [
     { id: 'home', label: 'Find a Doctor', icon: IconHome },
     { id: 'booking', label: 'Book Appointment', icon: IconCalendar },
+    { id: 'my-bookings', label: 'My Bookings', icon: IconFile },
+    { id: 'prescriptions', label: 'Prescriptions', icon: IconPill },
+    { id: 'profile', label: 'My Profile', icon: IconUser },
   ],
 };
 
@@ -35,6 +39,9 @@ const VIEW_TITLES: Record<string, string> = {
   home: 'Find a Doctor',
   booking: 'Book an Appointment',
   'doctor-profile': 'Doctor Profile',
+  'my-bookings': 'My Bookings',
+  prescriptions: 'Prescriptions',
+  profile: 'My Profile',
 };
 
 interface AppShellProps {

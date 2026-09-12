@@ -14,8 +14,10 @@ const BookingAppointment = lazy(() => import('./components/generated/Appointment
 const PatientRecords = lazy(() => import('./components/generated/PatientRecords'));
 const Billings = lazy(() => import('./components/generated/BillingInvoicing'));
 const DoctorOnboarding = lazy(() => import('./components/subscriber/DoctorOnboarding'));
-
-function Loading() {
+const PatientProfile = lazy(() => import('./components/patient/PatientProfile'));
+const BookingHistory = lazy(() => import('./components/patient/BookingHistory'));
+const PrescriptionRecords = lazy(() => import('./components/patient/PrescriptionRecords'));
+function Loading() {const BookingHistory = lazy(() => import('./components/patient/BookingHistory'));
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F8FAFB]">
       <div className="text-center">
@@ -124,7 +126,13 @@ function AppRouter() {
                 onBookAppointment={(id) => navigate(`/portal/booking?doctor=${id}`)}
               />
             );
-          case 'home':
+                    case 'profile':
+            return <PatientProfile />;
+          case 'my-bookings':
+            return <BookingHistory />;
+          case 'prescriptions':
+            return <PrescriptionRecords />;
+                    case 'home':
           default:
             return (
               <PatientPortalHome
