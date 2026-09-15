@@ -178,14 +178,99 @@ export async function updateSubscriptionTier(id: string, values: Pick<Subscripti
   if (error) throw error;
 }
 
-export async function fetchDoctorPatients(doctorProfileId: string) {
+export type PatientListItem = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  last: string;
+  initials: string;
+  isWalkin: boolean;
+};
+
+export async function fetchDoctorPatients(doctorProfileId: string): Promise<PatientListItem[]> {
   const { data: doctor, error: doctorError } = await supabase.from('doctor_profiles').select('id').eq('profile_id', doctorProfileId).single();
   if (doctorError) throw doctorError;
-  const { data, error } = await supabase.from('appointments').select('patient:profiles!appointments_patient_id_fkey(id, full_name, email), scheduled_at').eq('doctor_id', doctor.id).order('scheduled_at', { ascending: false });
-  if (error) throw error;
-  const patients = new Map<string, { id: string; name: string; email: string; last: string; initials: string }>();
-  (data ?? []).forEach((row) => { const patient = row.patient as unknown as { id: string; full_name: string; email: string }; if (!patient || patients.has(patient.id)) return; patients.set(patient.id, { id: patient.id, name: patient.full_name, email: patient.email, last: new Date(row.scheduled_at).toLocaleDateString('en-PH'), initials: initials(patient.full_name) }); });
+
+  const [apptResult, walkinResult] = await Promise.all([
+    supabase.from('appointments').select('patient:profiles!appointments_patient_id_fkey(id, full_name, email, phone), scheduled_at').eq('doctor_id', doctor.id).order('scheduled_at', { ascending: false }),
+    supabase.from('walkin_patients').select('id, full_name, email, phone, created_at').eq('doctor_id', doctor.id).order('created_at', { ascending: false }),
+  ]);
+  if (apptResult.error) throw apptResult.error;
+  if (walkinResult.error) throw walkinResult.error;
+
+  const patients = new Map<string, PatientListItem>();
+  (apptResult.data ?? []).forEach((row) => {
+    const patient = row.patient as unknown as { id: string; full_name: string; email: string; phone: string | null };
+    if (!patient || patients.has(patient.id)) return;
+    patients.set(patient.id, { id: patient.id, name: patient.full_name, email: patient.email, phone: patient.phone, last: new Date(row.scheduled_at).toLocaleDateString('en-PH'), initials: initials(patient.full_name), isWalkin: false });
+  });
+  (walkinResult.data ?? []).forEach((row) => {
+    const key = `walkin-${row.id}`;
+    patients.set(key, { id: row.id, name: row.full_name, email: row.email ?? '', phone: row.phone, last: new Date(row.created_at).toLocaleDateString('en-PH'), initials: initials(row.full_name), isWalkin: true });
+  });
+
   return Array.from(patients.values());
+}
+
+export async function addWalkinPatient(doctorProfileId: string, input: { fullName: string; phone?: string; email?: string; notes?: string }) {
+  const { data: doctor, error: doctorError } = await supabase.from('doctor_profiles').select('id').eq('profile_id', doctorProfileId).single();
+  if (doctorError) throw doctorError;
+
+  const { data, error } = await supabase.from('walkin_patients').insert({
+    doctor_id: doctor.id,
+    full_name: input.fullName,
+    phone: input.phone || null,
+    email: input.email || null,
+    notes: input.notes || null,
+  }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export type PatientChart = {
+  id: string;
+  chartType: 'dental' | 'medical';
+  data: Record<string, unknown>;
+  updatedAt: string;
+};
+
+export async function fetchPatientChart(doctorProfileId: string, patientId: string, isWalkin: boolean, chartType: 'dental' | 'medical'): Promise<PatientChart | null> {
+  const { data: doctor, error: doctorError } = await supabase.from('doctor_profiles').select('id').eq('profile_id', doctorProfileId).single();
+  if (doctorError) throw doctorError;
+
+  let query = supabase.from('patient_charts').select('id, chart_type, data, updated_at').eq('doctor_id', doctor.id).eq('chart_type', chartType);
+  query = isWalkin ? query.eq('walkin_patient_id', patientId) : query.eq('patient_id', patientId);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { id: data.id, chartType: data.chart_type as 'dental' | 'medical', data: data.data as Record<string, unknown>, updatedAt: data.updated_at };
+}
+
+export async function savePatientChart(doctorProfileId: string, patientId: string, isWalkin: boolean, chartType: 'dental' | 'medical', chartData: Record<string, unknown>): Promise<void> {
+  const { data: doctor, error: doctorError } = await supabase.from('doctor_profiles').select('id').eq('profile_id', doctorProfileId).single();
+  if (doctorError) throw doctorError;
+
+  let existingQuery = supabase.from('patient_charts').select('id').eq('doctor_id', doctor.id).eq('chart_type', chartType);
+  existingQuery = isWalkin ? existingQuery.eq('walkin_patient_id', patientId) : existingQuery.eq('patient_id', patientId);
+  const { data: existing, error: findError } = await existingQuery.maybeSingle();
+  if (findError) throw findError;
+
+  if (existing) {
+    const { error } = await supabase.from('patient_charts').update({ data: chartData }).eq('id', existing.id);
+    if (error) throw error;
+  } else {
+    const row: Record<string, unknown> = {
+      doctor_id: doctor.id,
+      chart_type: chartType,
+      data: chartData,
+      patient_id: isWalkin ? null : patientId,
+      walkin_patient_id: isWalkin ? patientId : null,
+    };
+    const { error } = await supabase.from('patient_charts').insert(row);
+    if (error) throw error;
+  }
 }
 
 function initials(name: string): string {
@@ -424,6 +509,67 @@ export async function deleteClinicDocument(id: string, fileUrl: string): Promise
     await supabase.storage.from('clinic-documents').remove([path]);
   }
   const { error } = await supabase.from('clinic_documents').delete().eq('id', id);
+  if (error) throw error;
+}
+export type VisitEntry = {
+  id: string;
+  date: string;
+  serviceType: string;
+  notes: string | null;
+  status: string | null;
+  source: 'appointment' | 'walkin_log';
+};
+
+export async function fetchPatientVisitHistory(doctorProfileId: string, patientId: string, isWalkin: boolean): Promise<VisitEntry[]> {
+  const { data: doctor, error: doctorError } = await supabase.from('doctor_profiles').select('id').eq('profile_id', doctorProfileId).single();
+  if (doctorError) throw doctorError;
+
+  if (isWalkin) {
+    const { data, error } = await supabase
+      .from('visit_logs')
+      .select('id, visit_date, service_type, notes')
+      .eq('doctor_id', doctor.id)
+      .eq('walkin_patient_id', patientId)
+      .order('visit_date', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      date: row.visit_date,
+      serviceType: row.service_type,
+      notes: row.notes,
+      status: null,
+      source: 'walkin_log' as const,
+    }));
+  }
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, scheduled_at, service_type, notes, status')
+    .eq('doctor_id', doctor.id)
+    .eq('patient_id', patientId)
+    .order('scheduled_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    date: row.scheduled_at,
+    serviceType: row.service_type,
+    notes: row.notes,
+    status: row.status,
+    source: 'appointment' as const,
+  }));
+}
+
+export async function addWalkinVisitLog(doctorProfileId: string, walkinPatientId: string, input: { visitDate: string; serviceType: string; notes?: string }) {
+  const { data: doctor, error: doctorError } = await supabase.from('doctor_profiles').select('id').eq('profile_id', doctorProfileId).single();
+  if (doctorError) throw doctorError;
+
+  const { error } = await supabase.from('visit_logs').insert({
+    doctor_id: doctor.id,
+    walkin_patient_id: walkinPatientId,
+    visit_date: input.visitDate,
+    service_type: input.serviceType,
+    notes: input.notes || null,
+  });
   if (error) throw error;
 }
 export async function updateInvoiceStatus(id: string, status: string) {

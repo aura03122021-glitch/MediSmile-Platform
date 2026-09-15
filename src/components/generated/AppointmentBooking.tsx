@@ -4,6 +4,12 @@ import { useAuth } from '../../lib/auth-context';
 import { createAppointment, DoctorProfile, fetchDoctors, fetchDoctorAvailability, WorkingHours, phTimeToUtcIso } from '../../lib/live-data';
 
 const services = ['Dental Care', 'General Medicine', 'Specialist Consultation'];
+const DENTAL_SPECIALTIES = ['General Dentistry', 'Orthodontics', 'Cosmetic Restorations', 'Pediatric Dentistry', 'Oral Surgery'];
+
+function defaultServiceForDoctor(doctor: DoctorProfile | undefined): string {
+  if (!doctor) return services[0];
+  return doctor.specialties.some((s) => DENTAL_SPECIALTIES.includes(s)) ? 'Dental Care' : 'General Medicine';
+}
 const APPOINTMENT_DURATION_MIN = 30;
 const SLOT_STEP_MIN = 15;
 
@@ -24,6 +30,7 @@ export default function AppointmentBooking({ doctorId }: { doctorId?: string }) 
   const { activeUser } = useAuth();
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
   const [service, setService] = useState(services[0]);
+  const [serviceManuallySet, setServiceManuallySet] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(doctorId ?? '');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState('');
@@ -40,6 +47,12 @@ export default function AppointmentBooking({ doctorId }: { doctorId?: string }) 
       if (!selectedDoctor && loadedDoctors[0]) setSelectedDoctor(loadedDoctors[0].id);
     }).catch((error: Error) => setMessage(error.message));
   }, [doctorId]);
+
+  useEffect(() => {
+    if (serviceManuallySet) return;
+    const doc = doctors.find((d) => d.id === selectedDoctor);
+    if (doc) setService(defaultServiceForDoctor(doc));
+  }, [selectedDoctor, doctors, serviceManuallySet]);
 
   useEffect(() => {
     if (!selectedDoctor || !date) return;
@@ -108,7 +121,7 @@ export default function AppointmentBooking({ doctorId }: { doctorId?: string }) 
     <header className="mb-8"><p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-[#0D6E6E]">Your care, on your time</p><h1 className="text-4xl font-bold tracking-[-0.05em]">Book an Appointment</h1><p className="mt-3 text-base text-[#687b87]">Choose a doctor, time, and service. Your request will be saved to your account.</p></header>
     <form onSubmit={submitBooking} className="space-y-5">
       <section className="rounded-2xl border border-[#e7eeee] bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.07)]"><h2 className="mb-5 text-xl font-bold">Appointment details</h2>
-        <label className="block text-sm font-semibold">Service<select value={service} onChange={(event) => setService(event.target.value)} className="mt-2 w-full rounded-lg border border-[#dfe8e8] bg-white px-3 py-2.5 text-sm">{services.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label className="block text-sm font-semibold">Service<select value={service} onChange={(event) => { setService(event.target.value); setServiceManuallySet(true); }} className="mt-2 w-full rounded-lg border border-[#dfe8e8] bg-white px-3 py-2.5 text-sm">{services.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label className="mt-4 block text-sm font-semibold">Doctor<select value={selectedDoctor} onChange={(event) => setSelectedDoctor(event.target.value)} className="mt-2 w-full rounded-lg border border-[#dfe8e8] bg-white px-3 py-2.5 text-sm">{doctors.map((item) => <option key={item.id} value={item.id}>{item.fullName} · {item.specialties.join(', ')}</option>)}</select></label>
         {doctor && <p className="mt-2 text-xs text-[#607181]">Consultation fee: ₱{(doctor.consultationFeeCents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>}
         <label className="mt-4 block text-sm font-semibold">Date<input type="date" required value={date} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setDate(event.target.value)} className="mt-2 w-full rounded-lg border border-[#dfe8e8] px-3 py-2.5 text-sm" /></label>
