@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DoctorProfile as DoctorProfileRecord, fetchDoctor } from '../../lib/live-data';
+import { DoctorProfile as DoctorProfileRecord, fetchDoctor, fetchClinicDocuments, ClinicDocument, DOCUMENT_TYPES } from '../../lib/live-data';
 import { formatPHP } from '../../lib/currency';
 import {
   ArrowLeft,
@@ -15,6 +15,8 @@ import {
   Clock3,
   BadgeCheck,
   AlertCircle,
+  FileCheck2,
+  ExternalLink,
 } from 'lucide-react';
 
 interface DoctorProfileProps {
@@ -23,7 +25,6 @@ interface DoctorProfileProps {
   onBookAppointment: (doctorId: string) => void;
 }
 
-/* ── Avatar color palette (same as PatientPortalHome) ────────────── */
 const avatarColors = [
   '#0D6E6E',
   '#FF6B6B',
@@ -38,7 +39,6 @@ function avatarColor(id: string): string {
   return avatarColors[Math.abs(hash) % avatarColors.length];
 }
 
-/* ── Payment method display labels ───────────────────────────────── */
 const paymentLabel: Record<string, string> = {
   cash: 'Cash',
   card: 'Credit / Debit Card',
@@ -50,19 +50,20 @@ const paymentLabel: Record<string, string> = {
 
 export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: DoctorProfileProps) {
   const [doctor, setDoctor] = useState<DoctorProfileRecord | null>(null);
+  const [documents, setDocuments] = useState<ClinicDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchDoctor(doctorId)
       .then(setDoctor)
       .finally(() => setLoading(false));
+    fetchClinicDocuments(doctorId).then(setDocuments).catch(() => setDocuments([]));
   }, [doctorId]);
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center bg-[#F8FAFB] text-sm text-[#607181]">Loading doctor profile...</div>;
   }
 
-  /* ── Not found ───────────────────────────────────────────────── */
   if (!doctor) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFB] px-4">
@@ -89,7 +90,6 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
 
   return (
     <div className="min-h-screen bg-[#F8FAFB]">
-      {/* ── Top bar ──────────────────────────────────────────── */}
       <div className="bg-white border-b border-[#e5ebed]">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4 sm:px-6">
           <button
@@ -104,10 +104,8 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
       </div>
 
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        {/* ── Header card ────────────────────────────────────── */}
         <div className="rounded-2xl border border-[#e5ebed] bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.07)]">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-            {/* large avatar */}
             <div
               className="grid h-20 w-20 shrink-0 place-items-center rounded-full text-xl font-bold text-white"
               style={{ backgroundColor: avatarColor(doctor.id) }}
@@ -118,7 +116,6 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
             <div className="flex-1 text-center sm:text-left">
               <h1 className="text-xl font-bold text-[#1A2B3C]">{doctor.fullName}</h1>
 
-              {/* specialties */}
               <div className="mt-2 flex flex-wrap justify-center gap-1.5 sm:justify-start">
                 {doctor.specialties.map((s) => (
                   <span
@@ -130,14 +127,12 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
                 ))}
               </div>
 
-              {/* clinic */}
               <p className="mt-3 text-sm font-medium text-[#1A2B3C]">{doctor.clinicName}</p>
               <div className="mt-0.5 flex items-center justify-center gap-1 text-xs text-[#607181] sm:justify-start">
                 <MapPin size={12} className="shrink-0" />
                 {doctor.clinicAddress}, {doctor.city}, {doctor.province}
               </div>
 
-              {/* rating */}
               <div className="mt-3 flex items-center justify-center gap-1.5 sm:justify-start">
                 <Star size={14} className="fill-[#F59E0B] text-[#F59E0B]" />
                 <span className="text-sm font-bold text-[#1A2B3C]">{doctor.rating.toFixed(1)}</span>
@@ -147,7 +142,6 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
           </div>
         </div>
 
-        {/* ── Credentials ────────────────────────────────────── */}
         <Section title="Credentials" icon={ShieldCheck}>
           <InfoRow label="Medical Degree" value={doctor.medicalDegree} />
           <InfoRow label="PRC License Number" value={doctor.prcLicenseNumber} />
@@ -190,7 +184,6 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
           )}
         </Section>
 
-        {/* ── About ──────────────────────────────────────────── */}
         <Section title="About" icon={Stethoscope}>
           <p className="text-sm leading-relaxed text-[#1A2B3C]">{doctor.bio}</p>
 
@@ -208,7 +201,38 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
           </div>
         </Section>
 
-        {/* ── Accepted Payment Methods ───────────────────────── */}
+        {documents.length > 0 && (
+          <Section title="Clinic Permits & Credentials" icon={FileCheck2}>
+            <div className="space-y-2">
+              {documents.map((doc) => {
+                const label = DOCUMENT_TYPES.find((t) => t.value === doc.documentType)?.label ?? doc.documentType;
+                const isExpired = doc.expiryDate ? new Date(doc.expiryDate) < new Date() : false;
+
+                return (
+                  <div key={doc.id} className="flex items-center justify-between rounded-xl border border-[#e5ebed] bg-[#f8fafb] px-3.5 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-[#1A2B3C]">{label}</p>
+                      {doc.expiryDate && (
+                        <p className={`mt-0.5 text-[11px] ${isExpired ? 'text-red-600' : 'text-[#607181]'}`}>
+                          {isExpired ? 'Expired' : 'Valid until'} {new Date(doc.expiryDate).toLocaleDateString('en-PH')}
+                        </p>
+                      )}
+                    </div>
+                    
+                     <a href={doc.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex shrink-0 items-center gap-1 rounded-lg border border-[#dce8e8] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#0D6E6E] hover:bg-[#f2fafa]"
+                    >
+                      <ExternalLink size={12} /> View
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        )}
+
         <Section title="Accepted Payment Methods" icon={CreditCard}>
           <div className="flex flex-wrap gap-2">
             {doctor.acceptedPaymentMethods.map((m) => (
@@ -222,7 +246,6 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
           </div>
         </Section>
 
-        {/* ── Accepted HMOs / Insurance ──────────────────────── */}
         <Section title="Accepted HMOs / Insurance" icon={HeartPulse}>
           <div className="flex flex-wrap gap-2">
             {doctor.acceptedHmos.map((h) => (
@@ -236,7 +259,6 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
           </div>
         </Section>
 
-        {/* ── Consultation Fee ───────────────────────────────── */}
         <Section title="Consultation Fee" icon={Clock3}>
           <p className="text-2xl font-bold text-[#0D6E6E]">
             {formatPHP(doctor.consultationFeeCents)}
@@ -244,7 +266,6 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
           <p className="mt-1 text-xs text-[#607181]">Per consultation visit</p>
         </Section>
 
-        {/* ── Book button ────────────────────────────────────── */}
         <div className="mt-6 pb-8">
           <button
             type="button"
@@ -259,7 +280,6 @@ export default function DoctorProfile({ doctorId, onBack, onBookAppointment }: D
   );
 }
 
-/* ── Reusable section wrapper ────────────────────────────────────── */
 function Section({
   title,
   icon: Icon,
@@ -280,7 +300,6 @@ function Section({
   );
 }
 
-/* ── Info row (label : value) ────────────────────────────────────── */
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between border-b border-[#f0f3f5] py-2 last:border-0">
@@ -290,7 +309,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/* ── Mini stat block ─────────────────────────────────────────────── */
 function MiniStat({
   icon: Icon,
   label,

@@ -21,6 +21,7 @@ const NAV_CONFIG: Record<Role, NavItem[]> = {
     { id: 'patients', label: 'Patient Records', icon: IconFile },
     { id: 'schedule', label: 'Appointments', icon: IconCalendar },
     { id: 'billing', label: 'Billing', icon: IconCard },
+    { id: 'profile', label: 'My Profile', icon: IconUser },
   ],
   patient: [
     { id: 'home', label: 'Find a Doctor', icon: IconHome },

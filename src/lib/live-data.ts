@@ -349,7 +349,83 @@ export async function fetchInvoices(): Promise<InvoiceRecord[]> {
     };
   });
 }
+export type ClinicDocument = {
+  id: string;
+  doctorId: string;
+  documentType: string;
+  fileUrl: string;
+  fileName: string;
+  issuedDate: string | null;
+  expiryDate: string | null;
+  verified: boolean;
+  uploadedAt: string;
+};
 
+export const DOCUMENT_TYPES: { value: string; label: string }[] = [
+  { value: 'dti_sec_registration', label: 'DTI/SEC Business Registration' },
+  { value: 'mayors_business_permit', label: "Mayor's / Business Permit" },
+  { value: 'bir_certificate', label: 'BIR Certificate of Registration' },
+  { value: 'sanitary_permit', label: 'Sanitary Permit' },
+  { value: 'fda_license', label: 'FDA License to Operate' },
+  { value: 'fire_safety_certificate', label: 'Fire Safety Inspection Certificate' },
+];
+
+export async function fetchClinicDocuments(doctorId: string): Promise<ClinicDocument[]> {
+  const { data, error } = await supabase
+    .from('clinic_documents')
+    .select('*')
+    .eq('doctor_id', doctorId)
+    .order('document_type');
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    doctorId: row.doctor_id,
+    documentType: row.document_type,
+    fileUrl: row.file_url,
+    fileName: row.file_name,
+    issuedDate: row.issued_date,
+    expiryDate: row.expiry_date,
+    verified: row.verified,
+    uploadedAt: row.uploaded_at,
+  }));
+}
+
+export async function uploadClinicDocument(input: {
+  doctorId: string;
+  documentType: string;
+  file: File;
+  issuedDate?: string;
+  expiryDate?: string;
+}): Promise<void> {
+  const ext = input.file.name.split('.').pop();
+  const path = `${input.doctorId}/${input.documentType}-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('clinic-documents')
+    .upload(path, input.file, { upsert: false });
+  if (uploadError) throw uploadError;
+
+  const { data: urlData } = supabase.storage.from('clinic-documents').getPublicUrl(path);
+
+  const { error: insertError } = await supabase.from('clinic_documents').insert({
+    doctor_id: input.doctorId,
+    document_type: input.documentType,
+    file_url: urlData.publicUrl,
+    file_name: input.file.name,
+    issued_date: input.issuedDate || null,
+    expiry_date: input.expiryDate || null,
+  });
+  if (insertError) throw insertError;
+}
+
+export async function deleteClinicDocument(id: string, fileUrl: string): Promise<void> {
+  const path = fileUrl.split('/clinic-documents/')[1];
+  if (path) {
+    await supabase.storage.from('clinic-documents').remove([path]);
+  }
+  const { error } = await supabase.from('clinic_documents').delete().eq('id', id);
+  if (error) throw error;
+}
 export async function updateInvoiceStatus(id: string, status: string) {
   const { data, error } = await supabase
     .from('invoices')

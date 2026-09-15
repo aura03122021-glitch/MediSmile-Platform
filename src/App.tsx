@@ -15,6 +15,7 @@ const PatientRecords = lazy(() => import('./components/generated/PatientRecords'
 const Billings = lazy(() => import('./components/generated/BillingInvoicing'));
 const DoctorOnboarding = lazy(() => import('./components/subscriber/DoctorOnboarding'));
 const DoctorAppointments = lazy(() => import('./components/subscriber/DoctorAppointments'));
+const DoctorProfileEditor = lazy(() => import('./components/subscriber/DoctorProfileEditor'));
 const PatientProfile = lazy(() => import('./components/patient/PatientProfile'));
 const BookingHistory = lazy(() => import('./components/patient/BookingHistory'));
 const PrescriptionRecords = lazy(() => import('./components/patient/PrescriptionRecords'));
@@ -110,6 +111,7 @@ function AppRouter() {
         switch (view) {
           case 'billing': return <Billings />;
           case 'schedule': return <DoctorAppointments />;
+          case 'profile': return <DoctorProfileEditor />;
           case 'patients':
           default: return <PatientRecords doctorProfileId={activeUser.id} />;
         }
