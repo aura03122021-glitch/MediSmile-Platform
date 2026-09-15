@@ -1,4 +1,53 @@
 import { supabase } from './supabase';
+const PH_OFFSET_HOURS = 8;
+
+export function phTimeToUtcIso(date: string, time: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  const utcMs = Date.UTC(year, month - 1, day, hour - PH_OFFSET_HOURS, minute, 0);
+  return new Date(utcMs).toISOString();
+}
+
+export function utcToPhParts(isoString: string): { date: string; time: string } {
+  const d = new Date(isoString);
+  const phMs = d.getTime() + PH_OFFSET_HOURS * 60 * 60 * 1000;
+  const phDate = new Date(phMs);
+  const date = phDate.toISOString().slice(0, 10);
+  const time = phDate.toISOString().slice(11, 16);
+  return { date, time };
+}
+export function sortAppointmentsForDisplay<T extends { scheduled_at: string; status: string }>(rows: T[]): T[] {
+  const upcoming = rows.filter((r) => r.status === 'pending' || r.status === 'confirmed');
+  const past = rows.filter((r) => r.status !== 'pending' && r.status !== 'confirmed');
+
+  upcoming.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+  past.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
+
+  return [...upcoming, ...past];
+}
+
+export function formatBookedOn(isoString: string): string {
+  const { dateStr } = formatPhDateTime(isoString);
+  return dateStr;
+}
+export function formatPhDateTime(isoString: string): { dateStr: string; timeStr: string } {
+
+  const { date, time } = utcToPhParts(isoString);
+  const d = new Date(`${date}T${time}:00Z`);
+  const dateStr = d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const timeStr = d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+  return { dateStr, timeStr };
+}
+export type DayHours = { enabled: boolean; start: string; end: string };
+export type WorkingHours = {
+  monday: DayHours;
+  tuesday: DayHours;
+  wednesday: DayHours;
+  thursday: DayHours;
+  friday: DayHours;
+  saturday: DayHours;
+  sunday: DayHours;
+};
 
 export type DoctorProfile = {
   id: string;
@@ -25,6 +74,7 @@ export type DoctorProfile = {
   rating: number;
   reviewCount: number;
   isAcceptingPatients: boolean;
+  workingHours: WorkingHours;
 };
 
 export type InvoiceRecord = {
@@ -148,6 +198,16 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
+const DEFAULT_WORKING_HOURS: WorkingHours = {
+  monday: { enabled: true, start: '09:00', end: '17:00' },
+  tuesday: { enabled: true, start: '09:00', end: '17:00' },
+  wednesday: { enabled: true, start: '09:00', end: '17:00' },
+  thursday: { enabled: true, start: '09:00', end: '17:00' },
+  friday: { enabled: true, start: '09:00', end: '17:00' },
+  saturday: { enabled: true, start: '09:00', end: '12:00' },
+  sunday: { enabled: false, start: '09:00', end: '17:00' },
+};
+
 function mapDoctor(row: Record<string, unknown>): DoctorProfile {
   const profile = row.profile as Record<string, unknown> | null;
   const fullName = String(profile?.full_name ?? row.full_name ?? 'Doctor');
@@ -176,6 +236,7 @@ function mapDoctor(row: Record<string, unknown>): DoctorProfile {
     rating: Number(row.rating ?? 0),
     reviewCount: Number(row.review_count ?? 0),
     isAcceptingPatients: Boolean(row.is_accepting_patients),
+    workingHours: (row.working_hours as WorkingHours) ?? DEFAULT_WORKING_HOURS,
   };
 }
 
@@ -220,6 +281,7 @@ export interface DoctorProfileUpdateInput {
   acceptedPaymentMethods: string[];
   acceptedHmos: string[];
   consultationFeeCents: number;
+  workingHours?: WorkingHours;
 }
 
 export async function updateMyDoctorProfile(profileId: string, input: DoctorProfileUpdateInput) {
@@ -237,6 +299,7 @@ export async function updateMyDoctorProfile(profileId: string, input: DoctorProf
     accepted_payment_methods: input.acceptedPaymentMethods,
     accepted_hmos: input.acceptedHmos,
     consultation_fee_cents: input.consultationFeeCents,
+    ...(input.workingHours ? { working_hours: input.workingHours } : {}),
   }).eq('profile_id', profileId);
   if (error) throw error;
 }
@@ -296,4 +359,39 @@ export async function updateInvoiceStatus(id: string, status: string) {
     .single();
   if (error) throw error;
   return data;
+}
+export async function fetchDoctorAvailability(doctorId: string, date: string): Promise<{ workingHours: WorkingHours; bookedSlots: { start: string; end: string }[] }> {
+  const { data: doctor, error: doctorError } = await supabase
+    .from('doctor_profiles')
+    .select('working_hours')
+    .eq('id', doctorId)
+    .single();
+  if (doctorError) throw doctorError;
+
+  const dayStart = `${date}T00:00:00`;
+  const dayEnd = `${date}T23:59:59`;
+
+  const { data: appointments, error: apptError } = await supabase
+    .from('appointments')
+    .select('scheduled_at, duration_minutes')
+    .eq('doctor_id', doctorId)
+    .gte('scheduled_at', dayStart)
+    .lte('scheduled_at', dayEnd)
+    .in('status', ['pending', 'confirmed']);
+  if (apptError) throw apptError;
+
+  const bookedSlots = (appointments ?? []).map((a) => {
+    const startParts = utcToPhParts(a.scheduled_at);
+    const start = new Date(`${startParts.date}T${startParts.time}:00Z`);
+    const end = new Date(start.getTime() + a.duration_minutes * 60000);
+    return {
+      start: startParts.time,
+      end: end.toISOString().slice(11, 16),
+    };
+  });
+
+  return {
+    workingHours: (doctor.working_hours as WorkingHours) ?? DEFAULT_WORKING_HOURS,
+    bookedSlots,
+  };
 }

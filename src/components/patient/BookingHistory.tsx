@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { CalendarClock, Stethoscope, MapPin } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth-context';
+import { formatPhDateTime, sortAppointmentsForDisplay, formatBookedOn } from '../../lib/live-data';
 
 type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 
 interface BookingRow {
   id: string;
   scheduled_at: string;
+  created_at: string;
   duration_minutes: number;
   service_type: string;
   reason_for_visit: string | null;
@@ -50,6 +52,7 @@ export default function BookingHistory() {
       .select(`
         id,
         scheduled_at,
+        created_at,
         duration_minutes,
         service_type,
         reason_for_visit,
@@ -65,7 +68,7 @@ export default function BookingHistory() {
         if (error) {
           setError('Could not load your booking history.');
         } else {
-          setBookings((data as unknown as BookingRow[]) ?? []);
+          setBookings(sortAppointmentsForDisplay((data as unknown as BookingRow[]) ?? []));
         }
         setLoading(false);
       });
@@ -103,9 +106,7 @@ export default function BookingHistory() {
   return (
     <div className="mx-auto max-w-3xl space-y-3">
       {bookings.map((b) => {
-        const date = new Date(b.scheduled_at);
-        const dateStr = date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-        const timeStr = date.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+        const { dateStr, timeStr } = formatPhDateTime(b.scheduled_at);
         const doctorName = b.doctor_profiles?.profiles?.full_name ?? 'Unknown Doctor';
         const clinicName = b.doctor_profiles?.clinic_name ?? '';
 
@@ -135,9 +136,12 @@ export default function BookingHistory() {
               </span>
             </div>
 
-            <div className="mt-3 flex items-center gap-1.5 border-t border-[#f0f3f5] pt-3 text-xs text-[#607181]">
-              <CalendarClock size={13} />
-              {dateStr} &middot; {timeStr} &middot; {b.duration_minutes} min
+            <div className="mt-3 flex items-center justify-between border-t border-[#f0f3f5] pt-3 text-xs text-[#607181]">
+              <span className="flex items-center gap-1.5">
+                <CalendarClock size={13} />
+                {dateStr} &middot; {timeStr} &middot; {b.duration_minutes} min
+              </span>
+              <span className="text-[11px] text-[#9aa8b0]">Booked on {formatBookedOn(b.created_at)}</span>
             </div>
           </div>
         );

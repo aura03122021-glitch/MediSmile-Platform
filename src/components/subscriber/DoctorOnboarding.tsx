@@ -1,11 +1,12 @@
 import { FormEvent, useState } from 'react';
 import { Stethoscope } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
-import { updateMyDoctorProfile } from '../../lib/live-data';
+import { updateMyDoctorProfile, WorkingHours, DayHours } from '../../lib/live-data';
 
 const specialtyOptions = ['General Dentistry', 'Orthodontics', 'Cosmetic Restorations', 'Pediatric Dentistry', 'Oral Surgery', 'General Medicine', 'Pediatrics', 'Internal Medicine', 'Dermatology'];
 const hmoOptions = ['Maxicare', 'Intellicare', 'Medicard', 'Kaiser', 'PhilHealth'];
 const paymentOptions = ['cash', 'card', 'gcash', 'maya', 'bank_transfer', 'insurance'];
+const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 
 interface DoctorOnboardingProps {
   onComplete: () => void;
@@ -25,11 +26,24 @@ export default function DoctorOnboarding({ onComplete }: DoctorOnboardingProps) 
   const [acceptedHmos, setAcceptedHmos] = useState<string[]>([]);
   const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState<string[]>(['cash', 'gcash']);
   const [consultationFee, setConsultationFee] = useState(500);
+  const [workingHours, setWorkingHours] = useState<WorkingHours>({
+    monday: { enabled: true, start: '09:00', end: '17:00' },
+    tuesday: { enabled: true, start: '09:00', end: '17:00' },
+    wednesday: { enabled: true, start: '09:00', end: '17:00' },
+    thursday: { enabled: true, start: '09:00', end: '17:00' },
+    friday: { enabled: true, start: '09:00', end: '17:00' },
+    saturday: { enabled: true, start: '09:00', end: '12:00' },
+    sunday: { enabled: false, start: '09:00', end: '17:00' },
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   function toggle(list: string[], setList: (v: string[]) => void, value: string) {
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  }
+
+  function updateDay(day: keyof WorkingHours, patch: Partial<DayHours>) {
+    setWorkingHours((prev) => ({ ...prev, [day]: { ...prev[day], ...patch } }));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -60,6 +74,7 @@ export default function DoctorOnboarding({ onComplete }: DoctorOnboardingProps) 
         acceptedPaymentMethods,
         acceptedHmos,
         consultationFeeCents: Math.round(consultationFee * 100),
+        workingHours,
       });
       onComplete();
     } catch (err) {
@@ -169,6 +184,40 @@ export default function DoctorOnboarding({ onComplete }: DoctorOnboardingProps) 
                   className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold capitalize transition ${acceptedPaymentMethods.includes(p) ? 'border-[#0D6E6E] bg-[#0D6E6E] text-white' : 'border-[#dce8e8] text-[#516373] hover:bg-[#f2fafa]'}`}>
                   {p.replace('_', ' ')}
                 </button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="mb-3 text-sm font-bold text-[#1A2B3C]">Working Hours</h3>
+            <div className="space-y-2">
+              {daysOfWeek.map((day) => (
+                <div key={day} className="flex flex-wrap items-center gap-3 rounded-xl border border-[#dce8e8] px-3.5 py-2.5">
+                  <label className="flex w-28 shrink-0 items-center gap-2 text-xs font-semibold capitalize text-[#1A2B3C]">
+                    <input
+                      type="checkbox"
+                      checked={workingHours[day].enabled}
+                      onChange={(e) => updateDay(day, { enabled: e.target.checked })}
+                      className="h-4 w-4 rounded border-[#dce8e8] accent-[#0D6E6E]"
+                    />
+                    {day}
+                  </label>
+                  <input
+                    type="time"
+                    value={workingHours[day].start}
+                    disabled={!workingHours[day].enabled}
+                    onChange={(e) => updateDay(day, { start: e.target.value })}
+                    className="rounded-lg border border-[#dce8e8] px-2.5 py-1.5 text-xs disabled:opacity-40"
+                  />
+                  <span className="text-xs text-[#607181]">to</span>
+                  <input
+                    type="time"
+                    value={workingHours[day].end}
+                    disabled={!workingHours[day].enabled}
+                    onChange={(e) => updateDay(day, { end: e.target.value })}
+                    className="rounded-lg border border-[#dce8e8] px-2.5 py-1.5 text-xs disabled:opacity-40"
+                  />
+                </div>
               ))}
             </div>
           </section>
